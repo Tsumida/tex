@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+option go_package = "pb/tex;tex";
+
+package tex;
+
+import "api/oms.proto";
+
+// 获取最近N条订单请求
+message GetOrderListReq {
+    string account_id = 1;
+    uint32 page_limit = 2;
+    string page_offset = 3; // 从0开始
+}
+
+message GetOrderListRsp {
+    repeated oms.OrderDetail orders = 1;
+}
+
+
+service TexService {
+    rpc GetOrderList(GetOrderListReq) returns (GetOrderListRsp);
+    rpc GetOrderDetail(oms.GetOrderDetailReq) returns (oms.GetOrderDetailRsp);
+    rpc GetBalance(oms.GetBalanceReq) returns (oms.GetBalanceRsp);
+    
+    // rpc PlaceOrder(PlaceOrderReq) returns (PlaceOrderRsp);
+    // rpc CancelOrder(CancelOrderReq) returns (CancelOrderRsp);
+}
