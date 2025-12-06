@@ -18,12 +18,17 @@ type LuaExecutor[T any] struct {
 	LuaScript    string
 	LuaScriptSha string
 
-	mx *sync.RWMutex // 保证线程安全
+	mx sync.RWMutex // 保证线程安全
 }
 
 // APP初始化时调用
 func (l *LuaExecutor[T]) PrepareLuaScript(ctx context.Context) error {
-	sha, err := infra.GlobalRedis().ScriptLoad(l.LuaScript).Result()
+	if l.client == nil {
+		return fmt.Errorf("redis client is nil")
+	}
+
+	// load script into the configured redis client
+	sha, err := l.client.ScriptLoad(l.LuaScript).Result()
 	if err != nil {
 		panic(fmt.Errorf("failed to load ledger redis script: %w", err))
 	}
@@ -97,8 +102,8 @@ func (l *LuaExecutor[T]) UpdateOneEvent(
 //	keys=["balance:123:USD", "balance_ts:123:USD"]
 //	ARGV[1] = json(event)
 //	ARGV[2] = event.update_time
-func NewLedgerHandler(client redis.UniversalClient) LuaExecutor[*api.BalanceEvent] {
-	return LuaExecutor[*api.BalanceEvent]{
+func NewLedgerHandler(client redis.UniversalClient) *LuaExecutor[*api.BalanceEvent] {
+	return &LuaExecutor[*api.BalanceEvent]{
 		client: client,
 		// lua脚本:
 		// 1. 判断balance_ts:account_id:currency是否小于等于当前消息的ts
@@ -130,8 +135,8 @@ end
 //	ARGV[2] = event.tx_time
 //	ARGV[3] = event.order_id
 //	ARGV[4] = event.state
-func NewOrderHandler(client redis.UniversalClient) LuaExecutor[*api.OrderEvent] {
-	return LuaExecutor[*api.OrderEvent]{
+func NewOrderHandler(client redis.UniversalClient) *LuaExecutor[*api.OrderEvent] {
+	return &LuaExecutor[*api.OrderEvent]{
 		client: client,
 		LuaScript: `
 local order_list_key = KEYS[1]
@@ -150,8 +155,8 @@ return 1
 }
 
 // todo: review
-func NewKBarUpdator(client redis.UniversalClient) LuaExecutor[*api.MatchResult] {
-	return LuaExecutor[*api.MatchResult]{
+func NewKBarUpdator(client redis.UniversalClient) *LuaExecutor[*api.MatchResult] {
+	return &LuaExecutor[*api.MatchResult]{
 		client: client,
 		LuaScript: `
 return 1

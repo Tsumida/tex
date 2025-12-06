@@ -29,7 +29,7 @@ type KafkaConsumer struct {
 func (c *KafkaConsumer) Start(
 	cctx context.Context,
 	cfg *sarama.Config,
-	handler sarama.ConsumerGroupHandler,
+	consumer *ConsumerWrapper,
 ) error {
 	keepRunning := true
 	l := infra.GlobalLog().With(
@@ -45,9 +45,14 @@ func (c *KafkaConsumer) Start(
 		cancel()
 		return err
 	}
-	consumer := ConsumerWrapper{
-		ready: make(chan bool),
+
+	if consumer == nil {
+		cancel()
+		return errors.New("kafka consumer handler is nil")
 	}
+
+	// ensure we have a fresh ready channel before starting the loop
+	consumer.ready = make(chan bool)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -57,7 +62,7 @@ func (c *KafkaConsumer) Start(
 			// `Consume` should be called inside an infinite loop, when a
 			// server-side rebalance happens, the consumer session will need to be
 			// recreated to get the new claims
-			if err := client.Consume(ctx, []string{c.Topic}, &consumer); err != nil {
+			if err := client.Consume(ctx, []string{c.Topic}, consumer); err != nil {
 				if errors.Is(err, sarama.ErrClosedConsumerGroup) {
 					return
 				}

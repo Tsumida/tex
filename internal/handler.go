@@ -52,7 +52,7 @@ func (d *MsgDecoder) DecodeOrderEvent(msg *sarama.ConsumerMessage) (*api.BatchOr
 }
 
 // HandleLedgerEvent writes latest account balance snapshots into Redis.
-func HandleLedgerEvent(l state.LuaExecutor[*api.BalanceEvent]) kafka.MsgHandlerFunc {
+func HandleLedgerEvent(l *state.LuaExecutor[*api.BalanceEvent]) kafka.MsgHandlerFunc {
 
 	return func(s sarama.ConsumerGroupSession, msg *sarama.ConsumerMessage) error {
 		logger := infra.GlobalLog().With(
@@ -88,7 +88,7 @@ func HandleLedgerEvent(l state.LuaExecutor[*api.BalanceEvent]) kafka.MsgHandlerF
 }
 
 // HandleOrderEvent keeps per-account order list in Redis sorted by tx_time.
-func HandleOrderEvent(l state.LuaExecutor[*api.OrderEvent]) kafka.MsgHandlerFunc {
+func HandleOrderEvent(l *state.LuaExecutor[*api.OrderEvent]) kafka.MsgHandlerFunc {
 	return func(s sarama.ConsumerGroupSession, msg *sarama.ConsumerMessage) error {
 		logger := infra.GlobalLog().With(
 			zap.String("handler", "HandleOrderEvent"),
@@ -128,7 +128,7 @@ func HandleOrderEvent(l state.LuaExecutor[*api.OrderEvent]) kafka.MsgHandlerFunc
 }
 
 // HandleMatchResultEvent appends raw match result payloads into Redis for K-Bar building.
-func HandleMatchResultEvent(l state.LuaExecutor[*api.MatchResult]) kafka.MsgHandlerFunc {
+func HandleMatchResultEvent(l *state.LuaExecutor[*api.MatchResult]) kafka.MsgHandlerFunc {
 	return func(s sarama.ConsumerGroupSession, msg *sarama.ConsumerMessage) error {
 		defer s.MarkMessage(msg, "")
 		event, err := (&MsgDecoder{}).DecodeBatchMatchResult(msg)
