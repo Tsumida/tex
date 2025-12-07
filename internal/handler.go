@@ -78,7 +78,7 @@ func HandleLedgerEvent(l *state.LuaExecutor[*api.BalanceEvent]) kafka.MsgHandler
 				fmt.Sprintf("balance:%d:%s", event.AccountId, event.Currency),
 				fmt.Sprintf("balance_ts:%d:%s", event.AccountId, event.Currency),
 			}
-			if err := l.UpdateOneEvent(s.Context(), event, keys, string(jsonBuf), event.UpdateTime); err != nil {
+			if err := l.UpdateOneEvent(s.Context(), keys, string(jsonBuf), event.UpdateTime); err != nil {
 				logger.Error("failed to update ledger event in Redis", zap.Error(err))
 				continue
 			}
@@ -104,10 +104,10 @@ func HandleOrderEvent(l *state.LuaExecutor[*api.OrderEvent]) kafka.MsgHandlerFun
 		}
 
 		for _, event := range event.Events {
-
 			jsonBuf, err := json.Marshal(event)
 			if err != nil {
-				panic(err)
+				logger.Error("marshal order event", zap.Error(err))
+				continue
 			}
 			keys := []string{
 				fmt.Sprintf("orders:%d", event.AccountId),
@@ -118,7 +118,7 @@ func HandleOrderEvent(l *state.LuaExecutor[*api.OrderEvent]) kafka.MsgHandlerFun
 				ts = uint64(time.Now().UnixMicro())
 			}
 
-			if err := l.UpdateOneEvent(s.Context(), event, keys, string(jsonBuf), ts, event.OrderId, event.OrderState); err != nil {
+			if err := l.UpdateOneEvent(s.Context(), keys, string(jsonBuf), ts, event.OrderId, event.OrderState); err != nil {
 				logger.Error("failed to update order event in Redis", zap.Error(err))
 				continue
 			}
@@ -128,19 +128,77 @@ func HandleOrderEvent(l *state.LuaExecutor[*api.OrderEvent]) kafka.MsgHandlerFun
 }
 
 // HandleMatchResultEvent appends raw match result payloads into Redis for K-Bar building.
-func HandleMatchResultEvent(l *state.LuaExecutor[*api.MatchResult]) kafka.MsgHandlerFunc {
+func HandleMatchResultEvent(l *state.LuaExecutor[state.KBar]) kafka.MsgHandlerFunc {
+	keyFn := func(result *api.MatchResult) []string {
+		p := result.Records[0].TradePair
+		return []string{
+			fmt.Sprintf("kbar:%s%s:%s", p.Base, p.Quote, state.BarSec),
+			fmt.Sprintf("kbar:%s%s:%s", p.Base, p.Quote, state.BarMin),
+			fmt.Sprintf("kbar:%s%s:%s", p.Base, p.Quote, state.BarHour),
+			fmt.Sprintf("kbar:%s%s:%s", p.Base, p.Quote, state.BarDay),
+		}
+	}
+
 	return func(s sarama.ConsumerGroupSession, msg *sarama.ConsumerMessage) error {
+		logger := infra.GlobalLog().With(
+			zap.String("handler", "HandleMatchResultEvent"),
+			zap.String("topic", msg.Topic),
+			zap.Int32("partition", msg.Partition),
+			zap.Int64("offset", msg.Offset))
+
 		defer s.MarkMessage(msg, "")
-		event, err := (&MsgDecoder{}).DecodeBatchMatchResult(msg)
+		batch, err := (&MsgDecoder{}).DecodeBatchMatchResult(msg)
 		if err != nil {
-			panic(err)
+			logger.Error("failed to decode match result event", zap.Error(err))
+			return err
 		}
 
-		jsonBuf, err := json.MarshalIndent(event, "", "  ")
+		jsonBuf, err := json.MarshalIndent(batch, "", "  ")
 		if err != nil {
-			panic(err)
+			logger.Error("failed to marshal match result event to JSON", zap.Error(err))
+			return err
 		}
-		fmt.Printf("%s\n", jsonBuf)
+
+		for _, result := range batch.Results {
+			if result.Action != api.BizAction_FillOrder {
+				logger.Debug("skipping non-fill match result", zap.Int32("action", int32(result.Action)))
+				continue
+			}
+			for _, fillRecord := range result.Records {
+				p := fillRecord.TradePair
+				keys := keyFn(result)
+				pair := fmt.Sprintf("%s%s", p.Base, p.Quote)
+
+				// todo: 补充ts
+				ts := uint64(time.Now().UnixMicro())
+				kbar, err := state.KBarFromFillRecord(ts, fillRecord)
+				if err != nil {
+					logger.Error("failed to create K-Bar from fill record", zap.Error(err))
+					continue
+				}
+
+				// 入参见 NewKBarUpdator()
+				if err := l.UpdateOneEvent(
+					s.Context(),
+					keys,
+					fillRecord.MatchId,
+					kbar.StartInSec,
+					kbar.StartInMin,
+					kbar.StartInHour,
+					kbar.StartInDay,
+					kbar.Open,
+					kbar.High,
+					kbar.Low,
+					kbar.Close,
+					kbar.Volume,
+					pair,
+					string(jsonBuf),
+				); err != nil {
+					logger.Error("failed to update K-Bar in Redis", zap.Error(err))
+					continue
+				}
+			}
+		}
 
 		return nil
 	}

@@ -103,7 +103,7 @@ func RunTex(ctx context.Context) {
 					infra.GlobalLog().Error("failed to start kafka consumer", zap.String("topic", topic), zap.String("consumer_group", cg), zap.Error(err))
 				}
 			},
-				func(r interface{}) {
+				func(r any) {
 					infra.GlobalLog().Error("ledger event consumer panicked", zap.Any("recover", r))
 				},
 			)
@@ -121,7 +121,7 @@ func RunTex(ctx context.Context) {
 					infra.GlobalLog().Error("failed to start kafka consumer", zap.String("topic", topic), zap.String("consumer_group", cg), zap.Error(err))
 				}
 			},
-				func(r interface{}) {
+				func(r any) {
 					infra.GlobalLog().Error("order event consumer panicked", zap.Any("recover", r))
 				},
 			)
@@ -139,7 +139,7 @@ func RunTex(ctx context.Context) {
 					infra.GlobalLog().Error("failed to start kafka consumer", zap.String("topic", topic), zap.String("consumer_group", cg), zap.Error(err))
 				}
 			},
-				func(r interface{}) {
+				func(r any) {
 					infra.GlobalLog().Error("ledger event consumer panicked", zap.Any("recover", r))
 				},
 			)
