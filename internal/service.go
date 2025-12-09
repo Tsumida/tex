@@ -14,13 +14,21 @@ func NewTexService() *TexService {
 	return &TexService{}
 }
 
-func (s *TexService) GetOrderList(context.Context, *connect.Request[api.GetOrderListReq]) (*connect.Response[api.GetOrderListRsp], error) {
+func (s *TexService) GetOrderList(ctx context.Context, req *connect.Request[api.GetOrderListReq]) (*connect.Response[api.GetOrderListRsp], error) {
+	// client := infra.GlobalRedis()
+	// data := redis_state.NewOrderData()
+
+	// 从Redis的List获取
+	// data.OrderListKey(req.Msg.AccountId)
+
 	panic("todo")
 }
-func (s *TexService) GetOrderDetail(context.Context, *connect.Request[api.GetOrderDetailReq]) (*connect.Response[api.GetOrderDetailRsp], error) {
+
+func (s *TexService) GetOrderDetail(ctx context.Context, req *connect.Request[api.GetOrderDetailReq]) (*connect.Response[api.GetOrderDetailRsp], error) {
 	panic("todo")
 }
-func (s *TexService) GetBalance(context.Context, *connect.Request[api.GetBalanceReq]) (*connect.Response[api.GetBalanceRsp], error) {
+
+func (s *TexService) GetBalance(ctx context.Context, req *connect.Request[api.GetBalanceReq]) (*connect.Response[api.GetBalanceRsp], error) {
 	panic("todo")
 }
 

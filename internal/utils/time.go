@@ -14,7 +14,7 @@ func GetDayStartTimeSec(ts int64, zoneName string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("无法加载时区 %s: %w", zoneName, err)
 	}
-	t := time.Unix(ts/1000, (ts%1000)*int64(time.Millisecond)).In(loc)
+	t := time.Unix(ts/1_000_000, (ts%1_000_000)*int64(time.Microsecond)).In(loc)
 	dayStartTime := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
 	return dayStartTime.Unix(), nil
 }

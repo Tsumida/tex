@@ -14,7 +14,7 @@ import (
 	"github.com/tsumida/lunaship/infra"
 	"go.uber.org/zap"
 
-	"github.com/tsumida/tex/internal/module"
+	iutils "github.com/tsumida/tex/internal/utils"
 )
 
 // 参考: https://github.com/IBM/sarama/blob/main/examples/consumergroup/main.go
@@ -104,7 +104,7 @@ func (c *KafkaConsumer) Start(
 type MsgHandlerFunc func(session sarama.ConsumerGroupSession, msg *sarama.ConsumerMessage) error
 
 type ConsumerWrapper struct {
-	module.ModuleAPI
+	iutils.ModuleAPI
 
 	name    string
 	ready   chan bool
@@ -156,7 +156,6 @@ func (consumer *ConsumerWrapper) ConsumeClaim(session sarama.ConsumerGroupSessio
 					l.Error("message handler error", zap.Error(err))
 				}
 			}
-			session.MarkMessage(message, "")
 			logTags = logTags[:0]
 		// Should return when `session.Context()` is done.
 		// If not, will raise `ErrRebalanceInProgress` or `read tcp <ip>:<port>: i/o timeout` when kafka rebalance. see:

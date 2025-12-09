@@ -18,7 +18,7 @@ import (
 	svc "github.com/tsumida/tex/gen/api/apiconnect"
 	"github.com/tsumida/tex/internal"
 	"github.com/tsumida/tex/internal/kafka"
-	"github.com/tsumida/tex/internal/state"
+	redisstate "github.com/tsumida/tex/internal/state/redis_state"
 	iutils "github.com/tsumida/tex/internal/utils"
 )
 
@@ -77,9 +77,9 @@ func RunTex(ctx context.Context) {
 		},
 		func() error {
 			client := infra.GlobalRedis()
-			ledgerUpdater := state.NewLedgerHandler(client)
-			orderUpdater := state.NewOrderHandler(client)
-			kBarUpdater := state.NewKBarUpdator(client)
+			ledgerUpdater := redisstate.NewLedgerHandler(client)
+			orderUpdater := redisstate.NewOrderHandler(client)
+			kBarUpdater := redisstate.NewKBarUpdator(client)
 
 			if err := iutils.AnyError(
 				ledgerUpdater.PrepareLuaScript(ctx),

@@ -3,8 +3,10 @@
 PROJECT_NAME := tex
 PROJECT_ROOT := $(shell pwd)
 REPO_PREFIX := ""
-VERSION=v0.0.1
 
+# ==============================================================================
+# 💾 本地开发
+# ==============================================================================
 list-env:
 	@find ./ -type f -name "*.go" \
 	-exec grep -oP 'os.Getenv\(\K"[A-Z_]+"(?=\))' {} \; \
@@ -23,15 +25,6 @@ pb:
 model:
 	@gentool -c ./database/gen.tool
 
-run-dev: 
-	@cd ./deploy/dev/ && docker-compose up -d; cd ../../
-
-stop-dev: 
-	@cd ./deploy/dev/ && docker-compose stop; cd ../../
-
-clean-dev:
-	@cd ./deploy/dev/ && docker-compose down ; cd ../../
-
 ut:
 	@echo "work_dir=${PROJECT_ROOT}"
 	@mkdir -p ${PROJECT_ROOT}/tmp
@@ -40,8 +33,11 @@ ut:
 	@go test -v -count=1 -gcflags=all=-l -coverprofile=${PROJECT_ROOT}/tmp/coverage.out ./internal/...
 
 
+# ==============================================================================
+# 💾 构建指令
+# ==============================================================================
 build-img:
-	docker build -t ${PROJECT_NAME}:${VERSION} . 
+	docker build -t ${PROJECT_NAME}:latest . 
 
 push-img:
-	time docker push ${PROJECT_NAME}:${VERSION}
+	time docker push ${PROJECT_NAME}:latest
