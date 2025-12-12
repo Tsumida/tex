@@ -23,14 +23,33 @@ func NewBalanceData() *Balance {
 
 // =========================================== Order
 type Order struct {
-	OrderDetailKey func(orderID string) string
-	OrderListKey   func(accountID uint64) string
+	OrderDetailKey   func(orderID string) string
+	OrderDetailTsKey func(orderID string) string
+	OrderListKey     func(accountID uint64) string
 }
 
 func NewOrderData() *Order {
 	return &Order{
 		OrderDetailKey: func(orderID string) string {
 			return fmt.Sprintf("order_detail:%s", orderID)
+		},
+		OrderDetailTsKey: func(orderID string) string {
+			return fmt.Sprintf("order_detail_ts:%s", orderID)
+		},
+		OrderListKey: func(accountID uint64) string {
+			return fmt.Sprintf("orders:%d", accountID)
+		},
+	}
+}
+
+type OrderLister struct {
+	OrderListKey func(accountID uint64) string
+}
+
+func NewOrderLister() *OrderLister {
+	return &OrderLister{
+		OrderListKey: func(accountID uint64) string {
+			return fmt.Sprintf("orders:%d", accountID)
 		},
 	}
 }
@@ -69,7 +88,7 @@ type KBarData struct {
 func NewKBarData() *KBarData {
 	return &KBarData{
 		TickKey: func(base, quote string) string {
-			return fmt.Sprintf("tick_%s%s", base, quote)
+			return fmt.Sprintf("tick:%s%s", base, quote)
 		},
 		KBarInSecKey: func(base, quote string) string {
 			return fmt.Sprintf("kbar:%s%s:%s", base, quote, BarSec)

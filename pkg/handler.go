@@ -1,4 +1,4 @@
-package internal
+package pkg
 
 import (
 	"encoding/json"
@@ -7,8 +7,8 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/tsumida/lunaship/infra"
 	"github.com/tsumida/tex/gen/api"
-	"github.com/tsumida/tex/internal/kafka"
-	redisstate "github.com/tsumida/tex/internal/state/redis_state"
+	"github.com/tsumida/tex/pkg/kafka"
+	redisstate "github.com/tsumida/tex/pkg/state/redis_state"
 	"go.uber.org/zap"
 )
 
@@ -31,7 +31,7 @@ func HandleLedgerEvent(l redisstate.LuaExecutorAPI) kafka.MsgHandlerFunc {
 			logger.Warn("skip empty ledger message")
 			return nil
 		}
-		return handleLedgerEvent(logger, l, s, msg.Value, uint64(msg.Timestamp.UnixMicro()))
+		return handleLedgerEvent(logger, l, s, msg.Value)
 	}
 }
 
@@ -40,7 +40,6 @@ func handleLedgerEvent(
 	l redisstate.LuaExecutorAPI,
 	s sarama.ConsumerGroupSession,
 	data []byte,
-	ts uint64,
 ) error {
 	event, err := (&MsgDecoder{}).DecodeLedgerEvent(data)
 	if err != nil {
@@ -58,11 +57,6 @@ func handleLedgerEvent(
 		keys := []string{
 			fmt.Sprintf("balance:%d:%s", event.AccountId, event.Currency),
 			fmt.Sprintf("balance_ts:%d:%s", event.AccountId, event.Currency),
-		}
-
-		// todo: 以msg为准，补全tx_time
-		if event.UpdateTime == 0 {
-			event.UpdateTime = ts
 		}
 
 		if err := l.UpdateOneEvent(s.Context(), keys, string(jsonBuf), event.UpdateTime); err != nil {
@@ -92,7 +86,7 @@ func HandleOrderEvent(l redisstate.LuaExecutorAPI) kafka.MsgHandlerFunc {
 			logger.Warn("skip empty order message")
 			return nil
 		}
-		return handleOrderEvent(logger, l, s, redisState, msg.Value, uint64(msg.Timestamp.UnixMicro()))
+		return handleOrderEvent(logger, l, s, redisState, msg.Value)
 	}
 }
 
@@ -103,7 +97,6 @@ func handleOrderEvent(
 	s sarama.ConsumerGroupSession,
 	rs *redisstate.Order,
 	data []byte,
-	ts uint64,
 ) error {
 	event, err := (&MsgDecoder{}).DecodeOrderEvent(data)
 	if err != nil {
@@ -120,13 +113,11 @@ func handleOrderEvent(
 		logger.Info("recv order_event", zap.String("payload", string(jsonBuf)))
 		keys := []string{
 			rs.OrderDetailKey(event.OrderId),
-		}
-		txTime := event.TxTime
-		if txTime == 0 {
-			txTime = ts
+			rs.OrderDetailTsKey(event.OrderId),
+			rs.OrderListKey(event.AccountId),
 		}
 		orderStateStr := api.OrderState_name[int32(event.OrderState)]
-		if err := l.UpdateOneEvent(s.Context(), keys, string(jsonBuf), txTime, event.OrderId, orderStateStr); err != nil {
+		if err := l.UpdateOneEvent(s.Context(), keys, string(jsonBuf), event.TxTime, event.OrderId, orderStateStr); err != nil {
 			logger.Error("failed to update order event in Redis", zap.Error(err))
 			continue
 		}
@@ -222,4 +213,34 @@ func handleMatchResultEvent(
 	}
 
 	return nil
+}
+
+func orderDetailFromEvent(
+	event *api.OrderEvent,
+) *api.OrderDetail {
+	return &api.OrderDetail{
+		Original: &api.Order{
+			OrderId: event.OrderId,
+			TradePair: &api.TradePair{
+				Base:  event.Base,
+				Quote: event.Quote,
+			},
+			Direction:     event.Direction,
+			TimeInForce:   api.TimeInForce_value[event.TimeInForce],
+			OrderType:     api.OrderType_value[event.OrderType],
+			Price:         event.Price,
+			Quantity:      event.TargetQty,
+			CreateTime:    event.CreateTime,
+			ClientOrderId: event.ClientOrderId,
+			StpStrategy:   api.STPStrategy_value[event.StpStrategy],
+			AccountId:     event.AccountId,
+			PostOnly:      event.PostOnly,
+			TradeId:       event.TradeId,
+			PrevTradeId:   event.PrevTradeId,
+		},
+		CurrentState:   api.OrderState_name[event.OrderState],
+		FilledQuantity: event.FilledQty,
+		LastTradeId:    event.TradeId,
+		UpdateTime:     event.TxTime,
+	}
 }

@@ -14,7 +14,7 @@ import (
 	"github.com/tsumida/lunaship/infra"
 	"go.uber.org/zap"
 
-	iutils "github.com/tsumida/tex/internal/utils"
+	iutils "github.com/tsumida/tex/pkg/utils"
 )
 
 // 参考: https://github.com/IBM/sarama/blob/main/examples/consumergroup/main.go

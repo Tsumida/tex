@@ -23,15 +23,27 @@ pb:
 	@buf generate -v --path ./api
 
 model:
-	@gentool -c ./database/gen.tool
+	gentool -dsn "tex:n8btp3yfl0arxb12@tcp(localhost:3306)/tex?charset=utf8mb4&parseTime=true" \
+        -db mysql \
+        -outPath ./pkg/model \
+        -modelPkgName model \
+        -onlyModel true \
+        -fieldSignable true \
+		-withUnitTest true
 
 ut:
 	@echo "work_dir=${PROJECT_ROOT}"
 	@mkdir -p ${PROJECT_ROOT}/tmp
 	@touch ${PROJECT_ROOT}/tmp/coverage.out
 	@chmod +x ${PROJECT_ROOT}/tmp/coverage.out 
-	@go test -v -count=1 -gcflags=all=-l -coverprofile=${PROJECT_ROOT}/tmp/coverage.out ./internal/...
+	@go test -v -count=1 -gcflags=all=-l -coverprofile=${PROJECT_ROOT}/tmp/coverage.out ./pkg/...
 
+it:
+	@echo "work_dir=${PROJECT_ROOT}"
+	@mkdir -p ${PROJECT_ROOT}/tmp
+	@touch ${PROJECT_ROOT}/tmp/it_coverage.out
+	@chmod +x ${PROJECT_ROOT}/tmp/it_coverage.out 
+	@go test -v -count=1 -gcflags=all=-l -coverprofile=${PROJECT_ROOT}/tmp/it_coverage.out ./tests/tex/...
 
 # ==============================================================================
 # 💾 构建指令

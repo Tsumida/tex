@@ -11,7 +11,7 @@ import (
 	"github.com/tsumida/tex/gen/api"
 	"go.uber.org/zap"
 
-	iutils "github.com/tsumida/tex/internal/utils"
+	iutils "github.com/tsumida/tex/pkg/utils"
 )
 
 // Require: Thread-safe
@@ -28,17 +28,18 @@ type LuaExecutorAPI interface {
 }
 
 // redis对象管理
-type LuaExecutor[T any] struct {
+type LuaExecutor[T any, R any] struct {
 	name         string
 	client       redis.UniversalClient
 	LuaScript    string
 	LuaScriptSha string
+	respFn       func(res any) error
 
 	mx sync.RWMutex // 保证线程安全
 }
 
 // APP初始化时调用
-func (l *LuaExecutor[T]) PrepareLuaScript(ctx context.Context) error {
+func (l *LuaExecutor[T, R]) PrepareLuaScript(ctx context.Context) error {
 	if l.client == nil {
 		return fmt.Errorf("redis client is nil")
 	}
@@ -46,14 +47,15 @@ func (l *LuaExecutor[T]) PrepareLuaScript(ctx context.Context) error {
 	// load script into the configured redis client
 	sha, err := l.client.ScriptLoad(l.LuaScript).Result()
 	if err != nil {
-		panic(fmt.Errorf("failed to load ledger redis script: %w", err))
+		infra.GlobalLog().Error("failed to reload lua script", zap.Error(err))
+		return err
 	}
 	l.LuaScriptSha = sha
 	infra.GlobalLog().Info("Redis script loaded", zap.String("name", l.name), zap.String("sha", l.LuaScriptSha))
 	return nil
 }
 
-func (l *LuaExecutor[T]) fastPath(
+func (l *LuaExecutor[T, R]) fastPath(
 	keys []string,
 	scriptArgs ...any,
 ) error {
@@ -62,16 +64,20 @@ func (l *LuaExecutor[T]) fastPath(
 	}
 	res, err := l.client.EvalSha(l.LuaScriptSha, keys, scriptArgs...).Result()
 	if err == nil {
+		if l.respFn != nil {
+			return l.respFn(res)
+		}
+		// 默认处理
 		if resInt, _ := res.(int64); resInt == 1 {
 			infra.GlobalLog().Debug("updated redis", zap.Strings("key", keys))
 		} else {
-			infra.GlobalLog().Info("skipped outdated event", zap.Strings("key", keys))
+			infra.GlobalLog().Info("skipped outdated event", zap.Strings("key", keys), zap.Any("data", scriptArgs))
 		}
 	}
 	return err
 }
 
-func (l *LuaExecutor[T]) slowPathWithLock(
+func (l *LuaExecutor[T, R]) slowPathWithLock(
 	ctx context.Context,
 	keys []string,
 	scriptArgs ...any,
@@ -90,7 +96,7 @@ func (l *LuaExecutor[T]) slowPathWithLock(
 	return l.fastPath(keys, scriptArgs...)
 }
 
-func (l *LuaExecutor[T]) UpdateOneEvent(
+func (l *LuaExecutor[T, R]) UpdateOneEvent(
 	ctx context.Context,
 	keys []string,
 	scriptArgs ...any,
@@ -109,9 +115,9 @@ func (l *LuaExecutor[T]) UpdateOneEvent(
 	return err
 }
 
-var _ LuaExecutorAPI = (*LuaExecutor[*api.BalanceEvent])(nil)
-var _ LuaExecutorAPI = (*LuaExecutor[*api.OrderEvent])(nil)
-var _ LuaExecutorAPI = (*LuaExecutor[KBar])(nil)
+var _ LuaExecutorAPI = (*LuaExecutor[*api.BalanceEvent, int32])(nil)
+var _ LuaExecutorAPI = (*LuaExecutor[*api.OrderEvent, int32])(nil)
+var _ LuaExecutorAPI = (*LuaExecutor[KBar, int32])(nil)
 
 // 状态
 //  1. balance:account_id:currency 		-> value=json(event)
@@ -122,8 +128,8 @@ var _ LuaExecutorAPI = (*LuaExecutor[KBar])(nil)
 //	keys=["balance:123:USD", "balance_ts:123:USD"]
 //	ARGV[1] = json(event)
 //	ARGV[2] = event.update_time
-func NewLedgerHandler(client redis.UniversalClient) *LuaExecutor[*api.BalanceEvent] {
-	return &LuaExecutor[*api.BalanceEvent]{
+func NewLedgerHandler(client redis.UniversalClient) *LuaExecutor[*api.BalanceEvent, int32] {
+	return &LuaExecutor[*api.BalanceEvent, int32]{
 		name:   "LedgerHandler",
 		client: client,
 		// lua脚本:
@@ -140,7 +146,7 @@ if current_ts == false or tonumber(current_ts) <= tonumber(ARGV[2]) then
 	redis.log(redis.LOG_NOTICE, "Updated balance for key " .. balance_key)
 	return 1
 else
-	redis.log(redis.LOG_NOTICE, "Skipped outdated balance for key " .. balance_key)
+	redis.log(redis.LOG_NOTICE, "Skipped outdated balance for key, current_ts=" .. current_ts .. ", new_ts=" .. tostring(ARGV[2]))
 	return 0
 end
 `,
@@ -150,36 +156,82 @@ end
 // 状态
 //  1. order_detail:order_id -> value=JSON(event)
 //  2. order_detail_ts:order_id -> value=event.tx_time, expire=8days
+//  3. orders:account_id: -> value=ZScoredSet(key=tx_time, value=order_id)
 //
 // usage:
 //
-//	keys=["order_detail:order_id"]
+//	keys=["order_detail:order_id", "order_detail_ts:order_id", "orders:account_id"]
 //	ARGV[1] = json(event)
-//	ARGV[2] = event.tx_time
+//	ARGV[2] = event.update_time
 //	ARGV[3] = event.order_id
 //	ARGV[4] = event.state
-func NewOrderHandler(client redis.UniversalClient) *LuaExecutor[*api.OrderEvent] {
-	return &LuaExecutor[*api.OrderEvent]{
+func NewOrderHandler(client redis.UniversalClient) *LuaExecutor[*api.OrderEvent, int32] {
+	return &LuaExecutor[*api.OrderEvent, int32]{
 		name:   "OrderHandler",
 		client: client,
 		LuaScript: `
 local order_detail_key = KEYS[1]
+local order_detail_ts_key = KEYS[2]
+local order_list_key = KEYS[3]
+
 
 -- 如果订单时间戳是旧的, 则忽略
 -- 检查订单状态, 如果订单是已完成/已取消状态, 则从active_order_list中移除
 -- 更新订单详情和订单时间戳
-local current_ts = redis.call("GET", "order_detail_ts:" .. ARGV[3])
+local current_ts = redis.call("GET", order_detail_ts_key)
 if current_ts == false or tonumber(current_ts) <= tonumber(ARGV[2]) then
 	-- 更新订单详情
 	redis.call("SET", order_detail_key, ARGV[1])
-	redis.call("SET", "order_detail_ts:" .. ARGV[3], ARGV[2])
-	redis.call("EXPIRE", "order_detail_ts:" .. ARGV[3], 691200) -- 8 days
+	redis.call("SET", order_detail_ts_key, ARGV[2])
+
+	redis.call("ZADD", order_list_key, tonumber(ARGV[2]), ARGV[3])
+
 	return 1
 else
-	redis.log(redis.LOG_NOTICE, "Skipped outdated order for key " .. order_detail_key)
+	redis.log(redis.LOG_NOTICE, "Skipped outdated order for key, current_ts=" .. current_ts .. ", new_ts=" .. tostring(ARGV[2]))
 	return 0
 end
 `,
+	}
+}
+
+// 状态
+//  1. orders:account_id -> ZScoredSet(key=tx_time, value=order_id)
+//  2. order_detail:order_id -> value=JSON(event)
+//
+// usage:
+//
+//	keys=["orders:account_id"]
+//	ARGV[1] = page_offset
+//	ARGV[2] = page_limit
+//
+//	返回  []json(order_detail)
+func NewOrderListHandler(client redis.UniversalClient, respFunc func(data any) error) *LuaExecutor[any, []string] {
+	return &LuaExecutor[any, []string]{
+		name:   "OrderLister",
+		client: client,
+		LuaScript: `
+local order_list_key = KEYS[1]
+local order_detail_prefix = "order_detail:"
+
+local page_offset = tonumber(ARGV[1])
+local page_limit = tonumber(ARGV[2])
+
+-- 获取订单ID列表
+local order_ids = redis.call("ZREVRANGE", order_list_key, page_offset, page_offset + page_limit - 1)
+local order_details = {}
+
+for i, order_id in ipairs(order_ids) do
+	local order_detail_key = order_detail_prefix .. order_id
+	local order_detail = redis.call("GET", order_detail_key)
+	if order_detail then
+		table.insert(order_details, order_detail)
+	end
+end
+
+return order_details
+`,
+		respFn: respFunc,
 	}
 }
 
@@ -222,14 +274,14 @@ type Notification struct {
 }
 
 // 状态
-//  1. tick_<BASEQUOTE>:<match_id> -> value=LIST({...}), 一个tick直接对应一个FillRecord, 保留最新100条
+//  1. tick:<BASEQUOTE>:<match_id> -> value=LIST({...}), 一个tick直接对应一个FillRecord, 保留最新100条
 //  2. kbar:<BASEQUOTE>:<interval> -> value=ZScoredSet(kbar),
 //  3. kbar_match_id:<BASEQUOTE> -> value=last_match_id,
 //  4. 如果tick会导致zscoredSet 最后一条k线数据更新, 则广播到 notification:<interval> channel
 //
 // usage:
 //
-//		keys=["kbar:<PAIR>:SEC", "kbar:<PAIR>:MIN", "kbar:<PAIR>:HOUR", "kbar:<PAIR>:DAY"]
+//		keys=["tick:<PAIR>","kbar:<PAIR>:SEC", "kbar:<PAIR>:MIN", "kbar:<PAIR>:HOUR", "kbar:<PAIR>:DAY"]
 //		ARGV[1] = match_id
 //		ARGV[2] = sec_start_time
 //		ARGV[3] = min_start_time
@@ -242,8 +294,8 @@ type Notification struct {
 //		ARGV[10] = quantity
 //	 	ARGV[11] = BaseQuote
 //	 	ARGV[12] = json(fill_record)
-func NewKBarUpdator(client redis.UniversalClient) *LuaExecutor[KBar] {
-	return &LuaExecutor[KBar]{
+func NewKBarUpdator(client redis.UniversalClient) *LuaExecutor[KBar, int32] {
+	return &LuaExecutor[KBar, int32]{
 		name:   "KBarUpdator",
 		client: client,
 		LuaScript: `
@@ -271,6 +323,7 @@ local function tryMergeLast(barType, matchID, zsetBars, timestamp, newBar)
 		return 1
     else
         popedBar = cjson.decode(poped[1])
+		
         popedScore = tonumber(poped[2])
         if popedScore == timestamp then
             -- 合并Bar并发送通知:
@@ -289,8 +342,8 @@ local function tryMergeLast(barType, matchID, zsetBars, timestamp, newBar)
             else
 				-- 时间戳异常, 放回原数据
 				redis.call('ZADD', zsetBars, popedScore, cjson.encode(popedBar))
-				redis.log(redis.LOG_NOTICE, "Skipped outdated bar for key " .. zsetBars)
-				return 0
+				redis.log(redis.LOG_NOTICE, "Skipped outdated bar for key " .. zsetBars .. ", current_ts=" .. popedScore .. ", new_ts=" .. timestamp)
+				return 1
 			end
         end
     end
@@ -302,7 +355,7 @@ end
 local match_id = ARGV[1]
 local persistBars = {}
 local last_match_id_key = "kbar_match_id:" .. ARGV[11]
-local match_result_key = "tick_" .. ARGV[11]
+local match_result_key = KEYS[1]
 
 
 -- 检查是否有新的match_id
@@ -333,18 +386,18 @@ if last_match_id == false or tonumber(last_match_id) < tonumber(match_id) then
     local names = { 'SEC', 'MIN', 'HOUR', 'DAY' }
     -- 检查是否可以merge:
     for i = 1, 4 do
-        bar = tryMergeLast(names[i], match_id, zsetBars[i], barTypeStartTimes[i], { barTypeStartTimes[i], openPrice, highPrice, lowPrice, closePrice, quantity })
+        local bar = tryMergeLast(names[i], match_id, zsetBars[i], barTypeStartTimes[i], { barTypeStartTimes[i], openPrice, highPrice, lowPrice, closePrice, quantity })
         if bar then
             persistBars[names[i]] = bar
         end
     end
 	redis.call("SET", last_match_id_key, match_id)
 	redis.log(redis.LOG_NOTICE, "Updated bars for key " .. last_match_id_key)
-    return cjson.encode(persistBars)
+    return 1
+else
+	redis.log(redis.LOG_NOTICE, "Skipped outdated match " .. last_match_id_key .. ", current_id=" .. tostring(last_match_id) .. ", new_id=" .. tostring(match_id))
+	return 0
 end
-
-redis.log(redis.LOG_NOTICE, "Skipped outdated balance for key " .. balance_key)
-return '{}'
 `,
 	}
 }
