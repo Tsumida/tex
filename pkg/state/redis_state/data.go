@@ -21,6 +21,14 @@ func NewBalanceData() *Balance {
 	}
 }
 
+func (b *Balance) AllBalance(accountID uint64, currencies []string) []string {
+	keys := make([]string, 0, len(currencies))
+	for _, currency := range currencies {
+		keys = append(keys, b.BalanceKey(accountID, currency))
+	}
+	return keys
+}
+
 // =========================================== Order
 type Order struct {
 	OrderDetailKey   func(orderID string) string

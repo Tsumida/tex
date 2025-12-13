@@ -52,6 +52,8 @@ services:
       sleep 5 && \
       /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka-dev:9092 --topic match_req_BTCUSDT --partitions 1 --replication-factor 1 && \
       /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka-dev:9092 --topic match_result_BTCUSDT --partitions 1 --replication-factor 1 && \
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka-dev:9092 --topic match_req_ETHUSDT --partitions 1 --replication-factor 1 && \
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka-dev:9092 --topic match_result_ETHUSDT --partitions 1 --replication-factor 1 && \
       /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka-dev:9092 --topic order_events --partitions 1 --replication-factor 1 && \
       /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka-dev:9092 --topic ledger_events --partitions 1 --replication-factor 1 && \
       echo 'Kafka topics initialized successfully.'
@@ -66,40 +68,40 @@ services:
       - "6379:6379"
     # command: ["redis-server", "--appendonly", "yes"]
 
-  mysql-dev:
-    image: mysql:8.0.44
-    container_name: mysql-dev
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: tex
-      MYSQL_USER: tex
-      MYSQL_PASSWORD: n8btp3yfl0arxb12
-    command:
-      [
-        # "--default-authentication-plugin=mysql_native_password",
-        "--character-set-server=utf8mb4",
-        "--collation-server=utf8mb4_0900_ai_ci",
-        "--max_connections=200",
-        "--skip-name-resolve"
-      ]
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -prootpassword"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    ports:
-      - "3306:3306"
-    volumes:
-      - ./init:/docker-entrypoint-initdb.d  # 可选，加载你的 schema.sql
+  # mysql-dev:
+  #   image: mysql:8.0.44
+  #   container_name: mysql-dev
+  #   restart: always
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: rootpassword
+  #     MYSQL_DATABASE: tex
+  #     MYSQL_USER: tex
+  #     MYSQL_PASSWORD: n8btp3yfl0arxb12
+  #   command:
+  #     [
+  #       # "--default-authentication-plugin=mysql_native_password",
+  #       "--character-set-server=utf8mb4",
+  #       "--collation-server=utf8mb4_0900_ai_ci",
+  #       "--max_connections=200",
+  #       "--skip-name-resolve"
+  #     ]
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -prootpassword"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   ports:
+  #     - "3306:3306"
+  #   volumes:
+  #     - ./init:/docker-entrypoint-initdb.d  # 可选，加载你的 schema.sql
 
 
-  mvp_server:
+  oms_server:
     image: mvp_server:latest
-    container_name: mvp_server
+    container_name: oms_server
     environment:
       - RUST_LOG=debug
-      - SERVICE_NAME=mvp_server
+      - SERVICE_NAME=oms_server
       - SERVER_MODE=oms
       - TRACE_ENDPOINT=http://jaeger:4317
       - GRPC_SERVER_ENDPOINT=0.0.0.0:8080
@@ -116,18 +118,45 @@ services:
       redis:
         condition: service_started
 
-  mvp_me:
+  me_BTCUSDT:
     image: mvp_server:latest
-    container_name: mvp_me
+    container_name: me_BTCUSDT
     environment:
       - RUST_LOG=debug
-      - SERVICE_NAME=mvp_me
+      - SERVICE_NAME=me_BTCUSDT
+      - ME_BASE=BTC
+      - ME_QUOTE=USDT
       - SERVER_MODE=me
       - TRACE_ENDPOINT=http://jaeger:4317
       - GRPC_SERVER_ENDPOINT=0.0.0.0:8081
       - ENV=dev
     ports:
       - "8081:8081"
+    depends_on:
+      jaeger:
+        condition: service_started
+      kafka-dev:
+        condition: service_started
+      kafka-init-topics:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+
+  me_ETHUSDT:
+    image: mvp_server:latest
+    container_name: me_ETHUSDT
+    environment:
+      - RUST_LOG=debug
+      - SERVICE_NAME=me_ETHUSDT
+      - ME_BASE=ETH
+      - ME_QUOTE=USDT
+      - SERVER_MODE=me
+      - TRACE_ENDPOINT=http://jaeger:4317
+      - GRPC_SERVER_ENDPOINT=0.0.0.0:8081
+      - ENV=dev
+    ports:
+    # 端口映射
+      - "18081:8081"
     depends_on:
       jaeger:
         condition: service_started
@@ -158,8 +187,6 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_started
-      mysql-dev:
-        condition: service_healthy
 
 volumes:
   kafka_kraft_data:

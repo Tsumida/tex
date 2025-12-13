@@ -244,3 +244,15 @@ func orderDetailFromEvent(
 		UpdateTime:     event.TxTime,
 	}
 }
+
+func balanceFromBalanceEvent(
+	event *api.BalanceEvent,
+) *api.BalanceItem {
+	return &api.BalanceItem{
+		Currency:   event.Currency,
+		Balance:    event.Balance,
+		Available:  event.Deposit,
+		Frozen:     event.Frozen,
+		UpdateTime: event.UpdateTime,
+	}
+}
