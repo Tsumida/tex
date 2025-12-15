@@ -6,16 +6,44 @@ import (
 	"time"
 
 	connect "connectrpc.com/connect"
-	"github.com/go-redis/redis"
 	"github.com/tsumida/lunaship/infra"
-	"github.com/tsumida/lunaship/infra/utils"
-	"github.com/tsumida/tex/pkg/kafka"
+	"github.com/tsumida/lunaship/interceptor"
+	"github.com/tsumida/lunaship/kafka"
+	"github.com/tsumida/lunaship/log"
+	"github.com/tsumida/lunaship/redis"
+	service "github.com/tsumida/lunaship/service"
+	"github.com/tsumida/lunaship/utils"
+
 	redisstate "github.com/tsumida/tex/pkg/state/redis_state"
 	"go.uber.org/zap"
 
 	svc "github.com/tsumida/tex/gen/api/apiconnect"
-	iutils "github.com/tsumida/tex/pkg/utils"
+
+	v9 "github.com/redis/go-redis/v9"
 )
+
+// func initDB(env string) func() error {
+// 	switch env {
+// 	case "dev", "test":
+// 		return func() error {
+// 			return infra.InitMySQL(
+// 				mysql.Config{
+// 					DSN: fmt.Sprintf(
+// 						"%s:%s@tcp(%s)/%s?charset=utf8mb4&parseTime=true",
+// 						utils.StrOrDefault(os.Getenv("MYSQL_USER"), ""),
+// 						utils.StrOrDefault(os.Getenv("MYSQL_PWD"), ""),
+// 						utils.StrOrDefault(os.Getenv("MYSQL_ADDR"), "localhost:3306"),
+// 						utils.StrOrDefault(os.Getenv("MYSQL_DB"), "tex"),
+// 					),
+// 				},
+// 				gorm.Config{},
+// 				func(_ *gorm.DB) error { return nil },
+// 			)
+// 		}
+// 	default:
+// 		panic("invalid env")
+// 	}
+// }
 
 func RunApp(
 	ctx context.Context,
@@ -24,11 +52,11 @@ func RunApp(
 		NewTexService(),
 		connect.WithRecover(infra.RecoverFn),
 		connect.WithInterceptors(
-			infra.NewReqRespLogger(),
+			interceptor.NewReqRespLogger(),
 		),
 	)
 
-	svc := &infra.Service{
+	svc := &service.Service{
 		Path:           path,
 		Handler:        handler,
 		BindingAddress: utils.StrOrDefault(os.Getenv("SERVER_BIND_ADDR"), ":8180"),
@@ -45,26 +73,28 @@ func RunApp(
 			return infra.InitGopprof(infra.DEFAULT_PPROF_ADDR)
 		},
 		func() error {
-			return infra.InitRedis(ctx, &redis.UniversalOptions{
+			return redis.InitRedis(ctx, &v9.UniversalOptions{
 				Addrs: []string{utils.StrOrDefault(os.Getenv("REDIS_ADDR"), "localhost:6379")},
-			})
+			},
+				2*time.Second, 2,
+			)
 		},
 		func() error {
-			client := infra.GlobalRedis()
+			client := redis.GlobalRedis()
 			ledgerUpdater := redisstate.NewLedgerHandler(client)
 			orderUpdater := redisstate.NewOrderHandler(client)
 			kBarUpdater := redisstate.NewKBarUpdator(client)
 
-			if err := iutils.AnyError(
-				ledgerUpdater.PrepareLuaScript(ctx),
-				orderUpdater.PrepareLuaScript(ctx),
-				kBarUpdater.PrepareLuaScript(ctx),
-			); err != nil {
-				panic(err)
-			}
+			// if err := iutils.AnyError(
+			// 	ledgerUpdater.PrepareLuaScript(ctx),
+			// 	orderUpdater.PrepareLuaScript(ctx),
+			// 	kBarUpdater.PrepareLuaScript(ctx),
+			// ); err != nil {
+			// 	panic(err)
+			// }
 
 			go utils.GoWithAction(func() {
-				cg := "tex_match_result_cg"
+				cg := "tex_match_result"
 				topic := "match_result_BTCUSDT"
 				consumer := &kafka.KafkaConsumer{
 					Brokers:       utils.StrOrDefault(os.Getenv("KAFKA_BROKERS"), "kafka-dev:9092"),
@@ -74,11 +104,11 @@ func RunApp(
 				cfg := kafka.DefaultConfig()
 
 				if err := consumer.Start(ctx, cfg, kafka.NewConsumerWrapper("match_result_consumer", HandleMatchResultEvent(kBarUpdater))); err != nil {
-					infra.GlobalLog().Error("failed to start kafka consumer", zap.String("topic", topic), zap.String("consumer_group", cg), zap.Error(err))
+					log.GlobalLog().Error("failed to start kafka consumer", zap.String("topic", topic), zap.String("consumer_group", cg), zap.Error(err))
 				}
 			},
 				func(r any) {
-					infra.GlobalLog().Error("ledger event consumer panicked", zap.Any("recover", r))
+					log.GlobalLog().Error("ledger event consumer panicked", zap.Any("recover", r))
 				},
 			)
 
@@ -92,11 +122,11 @@ func RunApp(
 				}
 				cfg := kafka.DefaultConfig()
 				if err := consumer.Start(ctx, cfg, kafka.NewConsumerWrapper("order_event_consumer", HandleOrderEvent(orderUpdater))); err != nil {
-					infra.GlobalLog().Error("failed to start kafka consumer", zap.String("topic", topic), zap.String("consumer_group", cg), zap.Error(err))
+					log.GlobalLog().Error("failed to start kafka consumer", zap.String("topic", topic), zap.String("consumer_group", cg), zap.Error(err))
 				}
 			},
 				func(r any) {
-					infra.GlobalLog().Error("order event consumer panicked", zap.Any("recover", r))
+					log.GlobalLog().Error("order event consumer panicked", zap.Any("recover", r))
 				},
 			)
 
@@ -110,11 +140,11 @@ func RunApp(
 				}
 				cfg := kafka.DefaultConfig()
 				if err := consumer.Start(ctx, cfg, kafka.NewConsumerWrapper("ledger_event_consumer", HandleLedgerEvent(ledgerUpdater))); err != nil {
-					infra.GlobalLog().Error("failed to start kafka consumer", zap.String("topic", topic), zap.String("consumer_group", cg), zap.Error(err))
+					log.GlobalLog().Error("failed to start kafka consumer", zap.String("topic", topic), zap.String("consumer_group", cg), zap.Error(err))
 				}
 			},
 				func(r any) {
-					infra.GlobalLog().Error("ledger event consumer panicked", zap.Any("recover", r))
+					log.GlobalLog().Error("ledger event consumer panicked", zap.Any("recover", r))
 				},
 			)
 			return nil

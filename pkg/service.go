@@ -6,7 +6,8 @@ import (
 
 	connect "connectrpc.com/connect"
 	"github.com/samber/lo"
-	"github.com/tsumida/lunaship/infra"
+	"github.com/tsumida/lunaship/log"
+	"github.com/tsumida/lunaship/redis"
 	"github.com/tsumida/tex/gen/api"
 	"github.com/tsumida/tex/gen/api/apiconnect"
 	redisstate "github.com/tsumida/tex/pkg/state/redis_state"
@@ -22,9 +23,9 @@ func NewTexService() *TexService {
 
 func (s *TexService) GetOrderList(ctx context.Context, req *connect.Request[api.GetOrderListReq]) (*connect.Response[api.GetOrderListRsp], error) {
 
-	client := infra.GlobalRedis()
+	client := redis.GlobalRedis()
 	data := redisstate.NewOrderData()
-	logger := infra.GlobalLog()
+	logger := log.GlobalLog()
 
 	key := data.OrderListKey(req.Msg.AccountId)
 	pageOffset := req.Msg.PageOffset
@@ -40,7 +41,7 @@ func (s *TexService) GetOrderList(ctx context.Context, req *connect.Request[api.
 		return connect.NewResponse(&api.GetOrderListRsp{}), texerror.ErrInternal("invalid pagination")
 	}
 
-	orderIDs, err := client.ZRevRange(key, startIndex, endIndex).Result()
+	orderIDs, err := client.ZRevRange(ctx, key, startIndex, endIndex).Result()
 	if err != nil {
 		logger.Error("GetOrderList ZRevRange", zap.String("key", key), zap.Int64("start_index", startIndex), zap.Int64("end_index", endIndex), zap.Error(err))
 		return nil, err
@@ -49,7 +50,7 @@ func (s *TexService) GetOrderList(ctx context.Context, req *connect.Request[api.
 	// 获取最新的订单ID列表
 	rsp := &api.GetOrderListRsp{}
 	for _, orderIDBatch := range lo.Chunk(orderIDs, 10) {
-		orders, err := client.MGet(
+		orders, err := client.MGet(ctx,
 			lo.Map(orderIDBatch, func(orderID string, _ int) string {
 				return data.OrderDetailKey(orderID)
 			})...,
@@ -79,12 +80,12 @@ func (s *TexService) GetOrderList(ctx context.Context, req *connect.Request[api.
 
 func (s *TexService) GetOrderDetail(ctx context.Context, req *connect.Request[api.GetOrderDetailReq]) (*connect.Response[api.GetOrderDetailRsp], error) {
 
-	client := infra.GlobalRedis()
+	client := redis.GlobalRedis()
 	data := redisstate.NewOrderData()
-	logger := infra.GlobalLog()
+	logger := log.GlobalLog()
 
 	key := data.OrderDetailKey(req.Msg.OrderId)
-	orderData, err := client.Get(key).Result()
+	orderData, err := client.Get(ctx, key).Result()
 	if err != nil {
 		logger.Error("GetOrderDetail Get", zap.String("key", key), zap.Error(err))
 		return nil, err
@@ -105,13 +106,13 @@ func (s *TexService) GetOrderDetail(ctx context.Context, req *connect.Request[ap
 
 func (s *TexService) GetBalance(ctx context.Context, req *connect.Request[api.GetBalanceReq]) (*connect.Response[api.GetBalanceRsp], error) {
 	// Scan balance:{account_id}
-	client := infra.GlobalRedis()
+	client := redis.GlobalRedis()
 	data := redisstate.NewBalanceData()
-	logger := infra.GlobalLog()
+	logger := log.GlobalLog()
 
 	// todo: read from configmap
 	keys := data.AllBalance(req.Msg.AccountId, []string{"USDT", "BTC"})
-	jsonStrs, err := client.MGet(keys...).Result()
+	jsonStrs, err := client.MGet(ctx, keys...).Result()
 	if err != nil {
 		logger.Error("GetBalance MGet", zap.Strings("keys", keys), zap.Error(err))
 		return nil, err

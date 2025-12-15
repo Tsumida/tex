@@ -2,3 +2,4 @@ gen/
 tmp
 snapshot
 bin
+__pycache__

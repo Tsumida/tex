@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"github.com/tsumida/lunaship/infra"
 	"go.uber.org/zap"
 )
 
@@ -17,7 +16,7 @@ type Module struct {
 
 func NewModule(moduleName string, logger *zap.Logger) *Module {
 	if logger == nil {
-		logger = infra.GlobalLog().With(
+		logger = logger.With(
 			zap.String("module", moduleName),
 		)
 	}

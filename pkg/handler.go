@@ -5,18 +5,21 @@ import (
 	"fmt"
 
 	"github.com/IBM/sarama"
-	"github.com/tsumida/lunaship/infra"
+	"github.com/tsumida/lunaship/kafka"
+	"github.com/tsumida/lunaship/log"
+	"github.com/tsumida/lunaship/redis"
+
 	"github.com/tsumida/tex/gen/api"
-	"github.com/tsumida/tex/pkg/kafka"
 	redisstate "github.com/tsumida/tex/pkg/state/redis_state"
+
 	"go.uber.org/zap"
 )
 
 // HandleLedgerEvent writes latest account balance snapshots into Redis.
-func HandleLedgerEvent(l redisstate.LuaExecutorAPI) kafka.MsgHandlerFunc {
+func HandleLedgerEvent(l redis.LuaExecutorAPI) kafka.MsgHandlerFunc {
 
 	return func(s sarama.ConsumerGroupSession, msg *sarama.ConsumerMessage) error {
-		logger := infra.GlobalLog().With(
+		logger := log.GlobalLog().With(
 			zap.String("handler", "HandleLedgerEvent"),
 			zap.String("topic", msg.Topic),
 			zap.Int32("partition", msg.Partition),
@@ -37,7 +40,7 @@ func HandleLedgerEvent(l redisstate.LuaExecutorAPI) kafka.MsgHandlerFunc {
 
 func handleLedgerEvent(
 	logger *zap.Logger,
-	l redisstate.LuaExecutorAPI,
+	l redis.LuaExecutorAPI,
 	s sarama.ConsumerGroupSession,
 	data []byte,
 ) error {
@@ -68,10 +71,10 @@ func handleLedgerEvent(
 }
 
 // HandleOrderEvent keeps per-account order list in Redis sorted by tx_time.
-func HandleOrderEvent(l redisstate.LuaExecutorAPI) kafka.MsgHandlerFunc {
+func HandleOrderEvent(l redis.LuaExecutorAPI) kafka.MsgHandlerFunc {
 	redisState := redisstate.NewOrderData()
 	return func(s sarama.ConsumerGroupSession, msg *sarama.ConsumerMessage) error {
-		logger := infra.GlobalLog().With(
+		logger := log.GlobalLog().With(
 			zap.String("handler", "HandleOrderEvent"),
 			zap.String("topic", msg.Topic),
 			zap.Int32("partition", msg.Partition),
@@ -93,7 +96,7 @@ func HandleOrderEvent(l redisstate.LuaExecutorAPI) kafka.MsgHandlerFunc {
 // 对每条FillOrder执行lua脚本
 func handleOrderEvent(
 	logger *zap.Logger,
-	l redisstate.LuaExecutorAPI,
+	l redis.LuaExecutorAPI,
 	s sarama.ConsumerGroupSession,
 	rs *redisstate.Order,
 	data []byte,
@@ -126,12 +129,12 @@ func handleOrderEvent(
 }
 
 // HandleMatchResultEvent appends raw match result payloads into Redis for K-Bar building.
-func HandleMatchResultEvent(l redisstate.LuaExecutorAPI) kafka.MsgHandlerFunc {
+func HandleMatchResultEvent(l redis.LuaExecutorAPI) kafka.MsgHandlerFunc {
 
 	redisState := redisstate.NewKBarData()
 
 	return func(s sarama.ConsumerGroupSession, msg *sarama.ConsumerMessage) error {
-		logger := infra.GlobalLog().With(
+		logger := log.GlobalLog().With(
 			zap.String("handler", "HandleMatchResultEvent"),
 			zap.String("topic", msg.Topic),
 			zap.Int32("partition", msg.Partition),
@@ -152,7 +155,7 @@ func HandleMatchResultEvent(l redisstate.LuaExecutorAPI) kafka.MsgHandlerFunc {
 
 func handleMatchResultEvent(
 	logger *zap.Logger,
-	l redisstate.LuaExecutorAPI,
+	l redis.LuaExecutorAPI,
 	s sarama.ConsumerGroupSession,
 	data []byte,
 	rs *redisstate.KBarData,
