@@ -98,13 +98,13 @@ test:
 	@echo "Waiting for services to start..." 
 	@chmod +x ./bin/mvp_client
 	@docker-compose -f $(DOCKER_COMPOSE_FILE) down  && sleep 2 && docker-compose -f $(DOCKER_COMPOSE_FILE) up -d && sleep 3
-	@echo "Running integration tests" && ./bin/mvp_client ./tests/integration/testcase_massive.case 
+# 	@echo "Running integration tests" && ./bin/mvp_client ./tests/integration/testcase_massive.case 
+	@echo "Running integration tests" && go test -v -count=1 ./tests/integration/oms/...
 	@echo "Wait kafka to be consumed..." && sleep 10
 	@echo "Dump snapshot" && ./bin/mvp_client ./tests/integration/testcase_snapshot.case && sleep 2 && $(MAKE) copy-snapshot
 	@echo "Stopping oms and me service..."
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) stop oms-server me_BTCUSDT me_ETHUSDT mvp_tex
 	@echo "Checking snapshot consistency..." && python3 tests/data/snapshot_check.py --dir=$(SS_DIR)
-	@echo "Checking oms-redis consistency..." && go test -v -count=1 ./tests/tex/...
+	@echo "Checking oms-redis consistency..." && go test -v -count=1 ./tests/integration/tex/...
 
 # ==============================================================================
 # 💾 构建指令

@@ -269,6 +269,12 @@ message CancelOrderReq{
 message CancelOrderRsp{
 }
 
+message TakeSnapshotReq{
+}
+
+message TakeSnapshotRsp{
+}
+
 message GetOrderDetailReq{
     string order_id = 1;
     string client_order_id = 2; 
@@ -278,6 +284,25 @@ message GetOrderDetailReq{
 message GetOrderDetailRsp{
     OrderDetail detail = 1;
 }
+
+message TransferFreezeReq{
+    string transfer_id = 1;
+    uint64 account_id = 2;
+    string currency = 3;
+    string amount = 4;  
+}
+
+message TransferFreezeRsp{}
+
+message TransferReq{
+    string transfer_id = 1;
+    uint64 from_account_id = 2;
+    uint64 to_account_id = 3;
+    string currency = 4;
+    string amount = 5;  
+}
+
+message TransferRsp{}
 
 // ======================================== 账户类请求
 message GetBalanceReq{
@@ -289,3 +314,21 @@ message GetBalanceRsp{
     repeated BalanceItem balances = 2;
 }
 
+// ======================================== 管理类请求
+message UpdateTradePairConfigReq{
+    TradePairConfig config = 1;
+}
+
+message UpdateTradePairConfigRsp{
+}
+
+// // ================================ 业务类
+service OMSService {
+    rpc PlaceOrder(PlaceOrderReq) returns (PlaceOrderRsp);
+
+    rpc CancelOrder(CancelOrderReq) returns (CancelOrderRsp);
+}
+// service MatchEngineService {
+//     // 内部使用
+//     rpc take_snapshot(TakeSnapshotReq) returns (TakeSnapshotRsp);
+// }

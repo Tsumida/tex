@@ -68,32 +68,32 @@ services:
       - "6379:6379"
     # command: ["redis-server", "--appendonly", "yes"]
 
-  # mysql-dev:
-  #   image: mysql:8.0.44
-  #   container_name: mysql-dev
-  #   restart: always
-  #   environment:
-  #     MYSQL_ROOT_PASSWORD: rootpassword
-  #     MYSQL_DATABASE: tex
-  #     MYSQL_USER: tex
-  #     MYSQL_PASSWORD: n8btp3yfl0arxb12
-  #   command:
-  #     [
-  #       # "--default-authentication-plugin=mysql_native_password",
-  #       "--character-set-server=utf8mb4",
-  #       "--collation-server=utf8mb4_0900_ai_ci",
-  #       "--max_connections=200",
-  #       "--skip-name-resolve"
-  #     ]
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -prootpassword"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   ports:
-  #     - "3306:3306"
-  #   volumes:
-  #     - ./init:/docker-entrypoint-initdb.d  # 可选，加载你的 schema.sql
+  mysql-dev:
+    image: mysql:8.0.44
+    container_name: mysql-dev
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: tex
+      MYSQL_USER: tex
+      MYSQL_PASSWORD: n8btp3yfl0arxb12
+    command:
+      [
+        # "--default-authentication-plugin=mysql_native_password",
+        "--character-set-server=utf8mb4",
+        "--collation-server=utf8mb4_0900_ai_ci",
+        "--max_connections=200",
+        "--skip-name-resolve"
+      ]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d  # 加载schema.sql, 只在volume初始化时执行一次
 
 
   oms-server:
