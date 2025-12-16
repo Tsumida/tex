@@ -11,10 +11,6 @@ import (
 	v9 "github.com/redis/go-redis/v9"
 )
 
-var _ redis.LuaExecutorAPI = (*redis.LuaExecutor[*api.BalanceEvent])(nil)
-var _ redis.LuaExecutorAPI = (*redis.LuaExecutor[*api.OrderEvent])(nil)
-var _ redis.LuaExecutorAPI = (*redis.LuaExecutor[KBar])(nil)
-
 // 状态
 //  1. balance:account_id:currency 		-> value=json(event)
 //  2. balance_ts:account_id:currency 	-> value=event.update_time
@@ -24,9 +20,8 @@ var _ redis.LuaExecutorAPI = (*redis.LuaExecutor[KBar])(nil)
 //	keys=["balance:123:USD", "balance_ts:123:USD"]
 //	ARGV[1] = json(event)
 //	ARGV[2] = event.update_time
-func NewLedgerHandler(client v9.UniversalClient) *redis.LuaExecutor[*api.BalanceEvent] {
-
-	return redis.NewLuaExecutorWithLogger[*api.BalanceEvent](
+func NewLedgerHandler(client v9.UniversalClient) *redis.LuaExecutor {
+	return redis.NewLuaExecutorWithLogger(
 		"LedgerHandler",
 		client,
 		// lua脚本:
@@ -64,8 +59,8 @@ end
 //	ARGV[2] = event.update_time
 //	ARGV[3] = event.order_id
 //	ARGV[4] = event.state
-func NewOrderHandler(client v9.UniversalClient) *redis.LuaExecutor[*api.OrderEvent] {
-	return redis.NewLuaExecutorWithLogger[*api.OrderEvent](
+func NewOrderHandler(client v9.UniversalClient) *redis.LuaExecutor {
+	return redis.NewLuaExecutorWithLogger(
 		"OrderHandler",
 		client,
 		`
@@ -104,8 +99,8 @@ end
 //	ARGV[2] = page_limit
 //
 //	返回  []json(order_detail)
-func NewOrderListHandler(client v9.UniversalClient, respFunc func(data any) error) *redis.LuaExecutor[any] {
-	return redis.NewLuaExecutorWithLogger[any](
+func NewOrderListHandler(client v9.UniversalClient, respFunc func(data any) error) *redis.LuaExecutor {
+	return redis.NewLuaExecutorWithLogger(
 		"OrderLister",
 		client, `
 local order_list_key = KEYS[1]
@@ -190,8 +185,8 @@ type Notification struct {
 //		ARGV[10] = quantity
 //	 	ARGV[11] = BaseQuote
 //	 	ARGV[12] = json(fill_record)
-func NewKBarUpdator(client v9.UniversalClient) *redis.LuaExecutor[KBar] {
-	return redis.NewLuaExecutorWithLogger[KBar](
+func NewKBarUpdator(client v9.UniversalClient) *redis.LuaExecutor {
+	return redis.NewLuaExecutorWithLogger(
 		"KBarUpdator",
 		client,
 		`

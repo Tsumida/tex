@@ -9,7 +9,7 @@ REPO_PREFIX := ""
 # 🐳 Docker 镜像配置
 # ==============================================================================
 
-IMAGE_NAME := oms_server
+IMAGE_NAME := oms-server
 IMAGE_TAG := latest
 DOCKERFILE_SERVER := Dockerfile.server
 
@@ -19,8 +19,10 @@ DOCKERFILE_SERVER := Dockerfile.server
 # ==============================================================================
 SS_DIR := ./tmp/snapshot
 # 注意: 容器名称应该与你实际运行的 docker-compose 或 run 命令中的名称保持一致
-OMS_CONTAINER := oms_server
-ME_CONTAINER := me
+OMS_CONTAINER := oms-server
+ME_CONTAINERS := me_BTCUSDT me_ETHUSDT
+TEX_CONTAINER := tex_server
+
 CONTAINER_SS_PATH := /app/snapshot
 TIMESTAMP := $(shell date +%Y%m%d_%H%M%S)
 PAIRS := BTCUSDT ETHUSDT
@@ -72,11 +74,11 @@ copy-snapshot:
 	TIMESTAMP=$$(date +%Y%m%d_%H%M%S); \
 	OUT_DIR=$(SS_DIR); \
 	\
-	echo "==> Copying OMS snapshots from oms_server ..."; \
-	if docker ps --format '{{.Names}}' | grep -q '^oms_server$$'; then \
-		docker cp oms_server:/app/snapshot/. $$OUT_DIR/; \
+	echo "==> Copying OMS snapshots from oms-server ..."; \
+	if docker ps --format '{{.Names}}' | grep -q '^oms-server$$'; then \
+		docker cp oms-server:/app/snapshot/. $$OUT_DIR/; \
 	else \
-		echo "OMS container oms_server not running"; \
+		echo "OMS container oms-server not running"; \
 	fi; \
 	\
 	for pair in BTCUSDT ETHUSDT; do \
@@ -99,8 +101,10 @@ test:
 	@echo "Running integration tests" && ./bin/mvp_client ./tests/integration/testcase_massive.case 
 	@echo "Wait kafka to be consumed..." && sleep 10
 	@echo "Dump snapshot" && ./bin/mvp_client ./tests/integration/testcase_snapshot.case && sleep 2 && $(MAKE) copy-snapshot
+	@echo "Stopping oms and me service..."
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) stop oms-server me_BTCUSDT me_ETHUSDT mvp_tex
 	@echo "Checking snapshot consistency..." && python3 tests/data/snapshot_check.py --dir=$(SS_DIR)
-# 	@echo "Stopping services..." && docker-compose stop
+	@echo "Checking oms-redis consistency..." && go test -v -count=1 ./tests/tex/...
 
 # ==============================================================================
 # 💾 构建指令

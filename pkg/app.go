@@ -6,6 +6,7 @@ import (
 	"time"
 
 	connect "connectrpc.com/connect"
+	v9 "github.com/redis/go-redis/v9"
 	"github.com/tsumida/lunaship/infra"
 	"github.com/tsumida/lunaship/interceptor"
 	"github.com/tsumida/lunaship/kafka"
@@ -13,13 +14,9 @@ import (
 	"github.com/tsumida/lunaship/redis"
 	service "github.com/tsumida/lunaship/service"
 	"github.com/tsumida/lunaship/utils"
-
+	svc "github.com/tsumida/tex/gen/api/apiconnect"
 	redisstate "github.com/tsumida/tex/pkg/state/redis_state"
 	"go.uber.org/zap"
-
-	svc "github.com/tsumida/tex/gen/api/apiconnect"
-
-	v9 "github.com/redis/go-redis/v9"
 )
 
 // func initDB(env string) func() error {

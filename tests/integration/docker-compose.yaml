@@ -96,12 +96,12 @@ services:
   #     - ./init:/docker-entrypoint-initdb.d  # 可选，加载你的 schema.sql
 
 
-  oms_server:
+  oms-server:
     image: mvp_server:latest
-    container_name: oms_server
+    container_name: oms-server
     environment:
       - RUST_LOG=debug
-      - SERVICE_NAME=oms_server
+      - SERVICE_NAME=oms-server
       - SERVER_MODE=oms
       - TRACE_ENDPOINT=http://jaeger:4317
       - GRPC_SERVER_ENDPOINT=0.0.0.0:8080
@@ -187,6 +187,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_started
+      # mysql-dev:
+      #   condition: service_healthy
 
 volumes:
   kafka_kraft_data:

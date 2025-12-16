@@ -14,13 +14,13 @@ class SnapshotChecker:
     def __init__(self, 
         oms_self_checks: List[Callable[any, List[CheckError]]], # type: ignore
         oms_ob_cross_checks: List[Callable[any, List[CheckError]]], # type: ignore
-        ledger_self_checks: List[Callable[any, List[CheckError]]] # type: ignore
+        ledger_self_checks: List[Callable[any, List[CheckError]]], # type: ignore
     ):
         self.oms_self_checks = oms_self_checks or []
         self.oms_ob_cross_checks = oms_ob_cross_checks or []
         self.ledger_self_checks = ledger_self_checks or []
         
-    def main(self, work_dir: str, trade_pairs: List[str]):
+    def main(self, work_dir: str, trade_pairs: List[str], redis_client=None):
         """
         主数据检查脚本。
         """
@@ -60,6 +60,7 @@ class SnapshotChecker:
             result = check(oms_snapshot, orderbook_snapshots)
             if result:
                 check_results.extend(result)
+        
         # --- 结果汇总 ---
         print("\n==================================================")
         print("📋 检查结果汇总")
@@ -135,7 +136,7 @@ if __name__ == "__main__":
         ],
         ledger_self_checks=[
             check_frozen_balance,
-        ]
+        ],
     )
 
     import argparse

@@ -9,7 +9,7 @@ import "api/oms.proto";
 // 获取最近N条订单请求
 message GetOrderListReq {
     uint64 account_id = 1;
-    int32 page_limit = 2;  // page_limit = -1 表示获取所有订单
+    int32 page_limit = 2; // page_limit = -1 表示获取所有订单
     uint32 page_offset = 3; // 从0开始
 }
 
@@ -17,12 +17,23 @@ message GetOrderListRsp {
     repeated oms.OrderDetail orders = 1;
 }
 
-
+// Tiny Exchange 交易相关服务
+// 负责数据查询和交易下单等功能
+// 数据源：撮合, OMS, 内存(redis)
 service TexService {
+
+    // 按更新时间倒叙查订单列表. 数据源：内存
     rpc GetOrderList(GetOrderListReq) returns (GetOrderListRsp);
-    rpc GetOrderDetail(oms.GetOrderDetailReq) returns (oms.GetOrderDetailRsp);
-    rpc GetBalance(oms.GetBalanceReq) returns (oms.GetBalanceRsp);
     
-    // rpc PlaceOrder(PlaceOrderReq) returns (PlaceOrderRsp);
-    // rpc CancelOrder(CancelOrderReq) returns (CancelOrderRsp);
+    // 获取订单详情. 数据源：内存
+    rpc GetOrderDetail(oms.GetOrderDetailReq) returns (oms.GetOrderDetailRsp);
+
+    // 获取账户最新余额. 数据源：内存
+    rpc GetBalance(oms.GetBalanceReq) returns (oms.GetBalanceRsp);
+
+    // 下单
+    rpc PlaceOrder(oms.PlaceOrderReq) returns (oms.PlaceOrderRsp);
+
+    // 撤单
+    rpc CancelOrder(oms.CancelOrderReq) returns (oms.CancelOrderRsp);
 }

@@ -43,16 +43,16 @@ enum OrderType{
 
 enum STPStrategy{
     UndefinedSTPStrategy = 0;
-    CancelTaker = 1;      // 撤销最老订单
-    CancelMaker = 2;      // 撤销最新订单
-    CancelBoth = 3;        // 撤销两个订单
+    CancelTaker = 1; // 撤销最老订单
+    CancelMaker = 2; // 撤销最新订单
+    CancelBoth = 3; // 撤销两个订单
 }
 
 enum BizAction{
     UndefinedBizAction = 0;
     Deposit = 1;
     Withdraw = 2;
-    Transfer = 3;   // 账户间划转
+    Transfer = 3; // 账户间划转
     PlaceOrder = 4;
     ReplaceOrder = 5;
     CancelOrder = 6;
@@ -66,16 +66,16 @@ enum AdminAction{
 }
 
 message TradePair{
-    string base = 1;   // 基础币种
-    string quote = 2;  // 计价币种
+    string base = 1; // 基础币种
+    string quote = 2; // 计价币种
 }
 
 message Order{
     string order_id = 1; 
     TradePair trade_pair = 2; 
-    int32 direction = 3;        // 对应Direction枚举
-    int32 time_in_force = 4;    // 对应TimeInForce枚举
-    int32 order_type = 5;   // 对应OrderType枚举
+    int32 direction = 3; // 对应Direction枚举
+    int32 time_in_force = 4; // 对应TimeInForce枚举
+    int32 order_type = 5; // 对应OrderType枚举
     string price = 6;
     string quantity = 7;
     uint64 create_time = 8; // us
@@ -97,11 +97,11 @@ message OrderDetail{
 }
 
 message OMSAdminCmd{
-    int32 admin_action = 1;  // 对应AdminAction枚举
+    int32 admin_action = 1; // 对应AdminAction枚举
 }
 
 message MatchAdminCmd{
-    int32 admin_action = 1;  // 对应AdminAction枚举
+    int32 admin_action = 1; // 对应AdminAction枚举
 }
 
 message RpcCmd{
@@ -124,7 +124,7 @@ message FillRecord{
     uint64 prev_match_id = 2;
     string price = 3;
     string quantity = 4;
-    int32 direction = 5;    // 对应Direction枚举
+    int32 direction = 5; // 对应Direction枚举
     string taker_order_id = 6;
     string maker_order_id = 7;
     bool is_taker_fulfilled = 8;
@@ -151,7 +151,7 @@ message MatchResult{
     BizAction action = 3; // 对应BizAction枚举, 只用到PlaceOrder, CancelOrder
     bool is_success = 4; // 撮合处理是否成功, 如果失败
     string err_msg = 5; // is_success为false时有效，表示失败原因
-    repeated FillRecord records = 6;  // action为PlaceOrder时有效
+    repeated FillRecord records = 6; // action为PlaceOrder时有效
     CancelResult cancel_result = 7; // action为CancelOrder时有效
 }
 
@@ -178,9 +178,9 @@ message BalanceItem{
 
 enum TradePairState{
     UndefinedPairState = 0;
-    TradingPair = 1;    // 正常交易
-    SuspendedPair = 2;  // 不可交易，但可以撤单
-    NewPair = 3;        // 新上线，暂不可交易
+    TradingPair = 1; // 正常交易
+    SuspendedPair = 2; // 不可交易，但可以撤单
+    NewPair = 3; // 新上线，暂不可交易
 }
 
 // ======================================== 配置类
@@ -269,12 +269,6 @@ message CancelOrderReq{
 message CancelOrderRsp{
 }
 
-message TakeSnapshotReq{
-}
-
-message TakeSnapshotRsp{
-}
-
 message GetOrderDetailReq{
     string order_id = 1;
     string client_order_id = 2; 
@@ -284,25 +278,6 @@ message GetOrderDetailReq{
 message GetOrderDetailRsp{
     OrderDetail detail = 1;
 }
-
-message TransferFreezeReq{
-    string transfer_id = 1;
-    uint64 account_id = 2;
-    string currency = 3;
-    string amount = 4;  
-}
-
-message TransferFreezeRsp{}
-
-message TransferReq{
-    string transfer_id = 1;
-    uint64 from_account_id = 2;
-    uint64 to_account_id = 3;
-    string currency = 4;
-    string amount = 5;  
-}
-
-message TransferRsp{}
 
 // ======================================== 账户类请求
 message GetBalanceReq{
@@ -314,37 +289,3 @@ message GetBalanceRsp{
     repeated BalanceItem balances = 2;
 }
 
-// ======================================== 管理类请求
-message UpdateTradePairConfigReq{
-    TradePairConfig config = 1;
-}
-
-message UpdateTradePairConfigRsp{
-}
-
-// // ================================ 业务类
-// service OMSService {
-//     rpc PlaceOrder(PlaceOrderReq) returns (PlaceOrderRsp);
-
-//     rpc CancelOrder(CancelOrderReq) returns (CancelOrderRsp);
-
-//     rpc TransferFreeze(TransferFreezeReq) returns (TransferFreezeRsp);
-
-//     rpc Transfer(TransferReq) returns (TransferRsp);
-
-//     // 订单查询类
-//     // 优先按order_id查询，其次按client_order_id查询
-//     rpc GetOrderDetail(GetOrderDetailReq) returns (GetOrderDetailRsp);
-
-//     // Balance类
-//     rpc GetBalance(GetBalanceReq) returns (GetBalanceRsp);
-
-//     // 内部使用
-//     rpc TakeSnapshot(TakeSnapshotReq) returns (TakeSnapshotRsp);
-//     rpc UpdateTradePairConfig(UpdateTradePairConfigReq) returns (UpdateTradePairConfigRsp);
-// }
-
-// service MatchEngineService {
-//     // 内部使用
-//     rpc take_snapshot(TakeSnapshotReq) returns (TakeSnapshotRsp);
-// }

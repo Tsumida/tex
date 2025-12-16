@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http/httptest"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -22,6 +24,9 @@ func prettyPrint(i any) string {
 }
 
 func TestMain(m *testing.M) {
+	// set env
+	os.Setenv("LOG_FILE", "../../tmp/log.log")
+	os.Setenv("ERR_FILE", "../../tmp/err.log")
 	go pkg.RunApp(context.TODO())
 	time.Sleep(2 * time.Second)
 	m.Run()
@@ -122,4 +127,44 @@ func TestGetOrderDetail(t *testing.T) {
 	order := detailRsp.Msg.Detail.Original
 	assert.Equal(t, orderID, order.OrderId)
 	fmt.Println(prettyPrint(order))
+}
+
+func TestGetBalance(t *testing.T) {
+
+	// .ledger.spot.<account_id>.<currency>.balance \ frozen \ available <-> redis核对
+	ctx := context.Background()
+	path, err := findLatestOmsSnapshot("../../tmp/snapshot")
+	assert.NoError(t, err)
+	ss := loadLedgerFrom(t, path)
+
+	_, handler := apiconnect.NewTexServiceHandler(pkg.NewTexService())
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	client := apiconnect.NewTexServiceClient(ts.Client(), ts.URL)
+
+	for acctID, balances := range ss {
+		rsp, err := client.GetBalance(ctx, &connect.Request[api.GetBalanceReq]{Msg: &api.GetBalanceReq{
+			AccountId: acctID,
+		}})
+		assert.NoError(t, err)
+		assert.NotNil(t, rsp)
+
+		for _, item := range rsp.Msg.Balances {
+			balanceItem, ok := balances[item.Currency]
+			assert.True(t, ok, "currency %s not found in snapshot", item.Currency)
+			assert.Equal(t, balanceItem.Deposit, item.Balance, "currency %s balance mismatch", item.Currency)
+
+			frozenFloat, err := strconv.ParseFloat(balanceItem.Frozen, 64)
+			assert.NoError(t, err)
+
+			availableFloat, err := strconv.ParseFloat(balanceItem.Deposit, 64)
+			assert.NoError(t, err)
+
+			availableFloat -= frozenFloat
+			assert.Equal(t, fmt.Sprintf("%.8f", availableFloat), item.Available, "currency %s available mismatch", item.Currency)
+			assert.Equal(t, balanceItem.Frozen, item.Frozen, "currency %s frozen mismatch", item.Currency)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }

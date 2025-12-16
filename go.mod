@@ -8,7 +8,7 @@ require (
 	github.com/redis/go-redis/v9 v9.17.2
 	github.com/samber/lo v1.37.0
 	github.com/stretchr/testify v1.11.1
-	github.com/tsumida/lunaship v0.0.0-20251215085406-e22df8284dd4
+	github.com/tsumida/lunaship v0.0.0-20251215140403-014342f50e6f
 	go.uber.org/zap v1.27.1
 	google.golang.org/protobuf v1.36.10
 )

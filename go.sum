@@ -106,6 +106,10 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/tsumida/lunaship v0.0.0-20251215085406-e22df8284dd4 h1:Hym72q0fHleG0JpjDFpBbPc5Mysej+luiiyiLTUpK0A=
 github.com/tsumida/lunaship v0.0.0-20251215085406-e22df8284dd4/go.mod h1:FuP3Jsf8NBSYg6v5kwcHb9O3ZhwrW8b0q2FTr6ZWdIk=
+github.com/tsumida/lunaship v0.0.0-20251215122214-68822fd622af h1:cQBuQTfqQWTcw7TfO9c1214LasaQZI5hf6a5exfXqtw=
+github.com/tsumida/lunaship v0.0.0-20251215122214-68822fd622af/go.mod h1:k/Kn+OdpdsgLRiCILo7ri5TY6TI4ZNOuTBCcGvxg54w=
+github.com/tsumida/lunaship v0.0.0-20251215140403-014342f50e6f h1:yEhEf1Vh+XO3tHyFq9iLwC3I1h63ZfWqQmkAqLFAXlU=
+github.com/tsumida/lunaship v0.0.0-20251215140403-014342f50e6f/go.mod h1:k/Kn+OdpdsgLRiCILo7ri5TY6TI4ZNOuTBCcGvxg54w=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
 go.uber.org/goleak v1.3.0/go.mod h1:CoHD4mav9JJNrW/WLlf7HGZPjdw8EucARQHekz1X6bE=
