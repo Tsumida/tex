@@ -2,7 +2,9 @@
 
 TinyExchange(Tex) 是一个go语言编写的交易后流程(Post-Trade)服务。
 
-它通过消费[tte](https://github.com/Tsumida/tte)产生的消息，转储到mysql和redis中, 同时提供查询能力。
+它通过消费[tte](https://github.com/Tsumida/tte)产生的消息，转储到mysql和redis中, 同时提供查询能力。[整体设计文档](https://ai.feishu.cn/wiki/HQCIwBlqZik5bhkPKcIcHJbCnVc)
+
+
 
 # 运行
 下载源代码
